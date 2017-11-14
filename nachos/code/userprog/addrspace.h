@@ -33,6 +33,9 @@ class ProcessAddressSpace {
 
     void SaveContextOnSwitch();			// Save/restore address space-specific
     void RestoreContextOnSwitch();		// info on a context switch
+    //Edited_Start
+    void pageFaultHandler(unsigned faultVAddr);
+    //Edited_Stop
 
     unsigned GetNumPages();
 

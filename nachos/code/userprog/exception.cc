@@ -314,6 +314,12 @@ ExceptionHandler(ExceptionType which)
         machine->WriteRegister(PCReg, machine->ReadRegister(NextPCReg));
         machine->WriteRegister(NextPCReg, machine->ReadRegister(NextPCReg)+4);
     }
+    else if (which == PageFaultException)
+    {
+      currentThread->SortedInsertInWaitQueue(1000 + stats->totalTicks);
+      unsigned faultVAddr = machine->ReadRegister(BadVAddrReg);
+      currentThread->space->pageFaultHandler(faultVAddr);
+    }
     else {
 	printf("Unexpected user mode exception %d %d\n", which, type);
 	ASSERT(FALSE);

@@ -46,6 +46,7 @@ ProcessAddressSpace::ShmAllocate(unsigned reqPages)
 	for(i=oldNumVirtualPages; i<numVirtualPages; i++)
 	{
 		temp = (void *)machine->ListOfPagesAvailable->SortedRemove(&pageTemp);
+		stats->numPageFaults++;
 		KernelPageTable[i].virtualPage = i;
 		KernelPageTable[i].physicalPage = pageTemp;
 		bzero((((char *)machine->mainMemory)+(pageTemp*PageSize)),PageSize);
@@ -65,6 +66,28 @@ ProcessAddressSpace::ShmAllocate(unsigned reqPages)
 	machine->KernelPageTableSize = numVirtualPages;
 	return oldNumVirtualPages*PageSize;
 }
+
+void
+ProcessAddressSpace::pageFaultHandler(unsigned faultVAddr)
+{
+	stats->numPageFaults++;
+	void *temp;
+	unsigned pageTemp;
+	temp = (void *)machine->ListOfPagesAvailable->SortedRemove(&pageTemp);
+	numPagesAllocated++;
+	unsigned faultVPage = faultVAddr/PageSize;
+	machine->KernelPageTable[faultVPage].physicalPage = pageTemp;
+	machine->KernelPageTable[faultVPage].valid = TRUE;
+	machine->KernelPageTable[faultVPage].use = FALSE;
+	machine->KernelPageTable[faultVPage].dirty = FALSE;
+	machine->KernelPageTable[faultVPage].readOnly = FALSE;  // if the code segment was entirely on
+					// a separate page, we could set its
+					// pages to be read-only
+	machine->KernelPageTable[faultVPage].shared = FALSE;
+	currentThread->executable->ReadAt(&(machine->mainMemory[pageTemp * PageSize]),
+                        PageSize, noffH.code.inFileAddr + faultVPage * PageSize);
+}
+
 //Edited_Stop
 
 //----------------------------------------------------------------------
@@ -118,6 +141,8 @@ ProcessAddressSpace::ProcessAddressSpace(OpenFile *executable)
     	SwapHeader(&noffH);
     ASSERT(noffH.noffMagic == NOFFMAGIC);
 
+		currentThread->executable = executable;
+		currentThread->noffH = noffH;
 // how big is address space?
     size = noffH.code.size + noffH.initData.size + noffH.uninitData.size
 			+ UserStackSize;	// we need to increase the size
