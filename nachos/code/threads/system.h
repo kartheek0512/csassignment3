@@ -1,8 +1,8 @@
-// system.h 
+// system.h
 //	All global variables used in Nachos are defined here.
 //
 // Copyright (c) 1992-1993 The Regents of the University of California.
-// All rights reserved.  See copyright.h for copyright notice and limitation 
+// All rights reserved.  See copyright.h for copyright notice and limitation
 // of liability and disclaimer of warranty provisions.
 
 #ifndef SYSTEM_H
@@ -15,6 +15,13 @@
 #include "interrupt.h"
 #include "stats.h"
 #include "timer.h"
+#include "machine.h"
+
+
+/*//Edited_Start
+extern List * ListOfPagesAvailable;
+//extern const int NumPhysPages;
+//Edited_Stop*/
 
 #define MAX_THREAD_COUNT 1000
 #define MAX_BATCH_SIZE 100
@@ -26,6 +33,7 @@
 #define UNIX_SCHED		4
 
 #define SCHED_QUANTUM		100		// If not a multiple of timer interval, quantum will overshoot
+// #define NumPhysPages 1024
 
 #define INITIAL_TAU		SystemTick	// Initial guess of the burst is set to the overhead of system activity
 #define ALPHA			0.5
@@ -71,7 +79,7 @@ private:
 public:
    TimeSortedWaitQueue (NachOSThread *th,unsigned w) { t = th; when = w; next = NULL; }
    ~TimeSortedWaitQueue (void) {}
-   
+
    NachOSThread *GetThread (void) { return t; }
    unsigned GetWhen (void) { return when; }
    TimeSortedWaitQueue *GetNext(void) { return next; }
@@ -85,7 +93,7 @@ extern TimeSortedWaitQueue *sleepQueueHead;
 extern Machine* machine;	// user program memory and registers
 #endif
 
-#ifdef FILESYS_NEEDED 		// FILESYS or FILESYS_STUB 
+#ifdef FILESYS_NEEDED 		// FILESYS or FILESYS_STUB
 #include "filesys.h"
 extern FileSystem  *fileSystem;
 #endif

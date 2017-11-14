@@ -1,9 +1,9 @@
-// addrspace.cc 
+// addrspace.cc
 //	Routines to manage address spaces (executing user programs).
 //
 //	In order to run a user program, you must:
 //
-//	1. link with the -N -T 0 option 
+//	1. link with the -N -T 0 option
 //	2. run coff2noff to convert the object file to Nachos format
 //		(Nachos object code format is essentially just a simpler
 //		version of the UNIX executable object code format)
@@ -12,7 +12,7 @@
 //		don't need to do this last step)
 //
 // Copyright (c) 1992-1993 The Regents of the University of California.
-// All rights reserved.  See copyright.h for copyright notice and limitation 
+// All rights reserved.  See copyright.h for copyright notice and limitation
 // of liability and disclaimer of warranty provisions.
 
 #include "copyright.h"
@@ -20,14 +20,61 @@
 #include "addrspace.h"
 #include "noff.h"
 
+//Edited_Start
+//extern List * ListOfPagesAvailable;
+
+int
+ProcessAddressSpace::ShmAllocate(unsigned reqPages)
+{
+	TranslationEntry * oldPageTable = KernelPageTable;
+	unsigned oldNumVirtualPages = numVirtualPages;
+	numVirtualPages = oldNumVirtualPages + reqPages;
+	KernelPageTable = new TranslationEntry[numVirtualPages];
+	int i;
+	for(i=0; i<oldNumVirtualPages; i++)
+	{
+		KernelPageTable[i].virtualPage = oldPageTable[i].virtualPage;
+		KernelPageTable[i].physicalPage = oldPageTable[i].physicalPage;
+		KernelPageTable[i].valid = oldPageTable[i].valid;
+		KernelPageTable[i].use = oldPageTable[i].use;
+		KernelPageTable[i].dirty = oldPageTable[i].dirty;
+		KernelPageTable[i].readOnly = oldPageTable[i].readOnly;
+		KernelPageTable[i].shared = oldPageTable[i].shared;
+	}
+	void * temp;
+	int pageTemp;
+	for(i=oldNumVirtualPages; i<numVirtualPages; i++)
+	{
+		temp = (void *)machine->ListOfPagesAvailable->SortedRemove(&pageTemp);
+		KernelPageTable[i].virtualPage = i;
+		KernelPageTable[i].physicalPage = pageTemp;
+		bzero((((char *)machine->mainMemory)+(pageTemp*PageSize)),PageSize);
+		// zero out the entire address space, to zero the unitialized data segment
+		// and the stack segment
+		KernelPageTable[i].valid = TRUE;
+		KernelPageTable[i].use = FALSE;
+		KernelPageTable[i].dirty = FALSE;
+		KernelPageTable[i].readOnly = FALSE;  // if the code segment was entirely on
+						// a separate page, we could set its
+						// pages to be read-only
+		KernelPageTable[i].shared = TRUE;
+	}
+	numPagesAllocated += reqPages;
+	delete oldPageTable;
+	machine->KernelPageTable = KernelPageTable;
+	machine->KernelPageTableSize = numVirtualPages;
+	return oldNumVirtualPages*PageSize;
+}
+//Edited_Stop
+
 //----------------------------------------------------------------------
 // SwapHeader
-// 	Do little endian to big endian conversion on the bytes in the 
+// 	Do little endian to big endian conversion on the bytes in the
 //	object file header, in case the file was generated on a little
 //	endian machine, and we're now running on a big endian machine.
 //----------------------------------------------------------------------
 
-static void 
+static void
 SwapHeader (NoffHeader *noffH)
 {
 	noffH->noffMagic = WordToHost(noffH->noffMagic);
@@ -50,7 +97,7 @@ SwapHeader (NoffHeader *noffH)
 //
 //	Assumes that the object code file is in NOFF format.
 //
-//	First, set up the translation from program memory to physical 
+//	First, set up the translation from program memory to physical
 //	memory.  For now, this is really simple (1:1), since we are
 //	only uniprogramming, and we have a single unsegmented page table
 //
@@ -66,13 +113,13 @@ ProcessAddressSpace::ProcessAddressSpace(OpenFile *executable)
     unsigned int pageFrame;
 
     executable->ReadAt((char *)&noffH, sizeof(noffH), 0);
-    if ((noffH.noffMagic != NOFFMAGIC) && 
+    if ((noffH.noffMagic != NOFFMAGIC) &&
 		(WordToHost(noffH.noffMagic) == NOFFMAGIC))
     	SwapHeader(&noffH);
     ASSERT(noffH.noffMagic == NOFFMAGIC);
 
 // how big is address space?
-    size = noffH.code.size + noffH.initData.size + noffH.uninitData.size 
+    size = noffH.code.size + noffH.initData.size + noffH.uninitData.size
 			+ UserStackSize;	// we need to increase the size
 						// to leave room for the stack
     numVirtualPages = divRoundUp(size, PageSize);
@@ -83,29 +130,34 @@ ProcessAddressSpace::ProcessAddressSpace(OpenFile *executable)
 										// at least until we have
 										// virtual memory
 
-    DEBUG('a', "Initializing address space, num pages %d, size %d\n", 
+    DEBUG('a', "Initializing address space, num pages %d, size %d\n",
 					numVirtualPages, size);
-// first, set up the translation 
+// first, set up the translation
     KernelPageTable = new TranslationEntry[numVirtualPages];
+		//Edited_Start
+		void * temp;
+    int pageTemp;
     for (i = 0; i < numVirtualPages; i++) {
+			temp = (void *)machine->ListOfPagesAvailable->SortedRemove(&pageTemp);
 	KernelPageTable[i].virtualPage = i;
-	KernelPageTable[i].physicalPage = i+numPagesAllocated;
+	KernelPageTable[i].physicalPage = pageTemp;
+	bzero((((char *)machine->mainMemory)+(pageTemp*PageSize)),PageSize);
+	// zero out the entire address space, to zero the unitialized data segment
+	// and the stack segment
 	KernelPageTable[i].valid = TRUE;
 	KernelPageTable[i].use = FALSE;
 	KernelPageTable[i].dirty = FALSE;
-	KernelPageTable[i].readOnly = FALSE;  // if the code segment was entirely on 
-					// a separate page, we could set its 
+	KernelPageTable[i].readOnly = FALSE;  // if the code segment was entirely on
+					// a separate page, we could set its
 					// pages to be read-only
+	KernelPageTable[i].shared = FALSE;
     }
-// zero out the entire address space, to zero the unitialized data segment 
-// and the stack segment
-    bzero(&machine->mainMemory[numPagesAllocated*PageSize], size);
- 
+		//Edited_Stop
     numPagesAllocated += numVirtualPages;
 
 // then, copy in the code and data segments into memory
     if (noffH.code.size > 0) {
-        DEBUG('a', "Initializing code segment, at 0x%x, size %d\n", 
+        DEBUG('a', "Initializing code segment, at 0x%x, size %d\n",
 			noffH.code.virtualAddr, noffH.code.size);
         vpn = noffH.code.virtualAddr/PageSize;
         offset = noffH.code.virtualAddr%PageSize;
@@ -115,7 +167,7 @@ ProcessAddressSpace::ProcessAddressSpace(OpenFile *executable)
 			noffH.code.size, noffH.code.inFileAddr);
     }
     if (noffH.initData.size > 0) {
-        DEBUG('a', "Initializing data segment, at 0x%x, size %d\n", 
+        DEBUG('a', "Initializing data segment, at 0x%x, size %d\n",
 			noffH.initData.virtualAddr, noffH.initData.size);
         vpn = noffH.initData.virtualAddr/PageSize;
         offset = noffH.initData.virtualAddr%PageSize;
@@ -135,7 +187,7 @@ ProcessAddressSpace::ProcessAddressSpace(OpenFile *executable)
 ProcessAddressSpace::ProcessAddressSpace(ProcessAddressSpace *parentSpace)
 {
     numVirtualPages = parentSpace->GetNumPages();
-    unsigned i, size = numVirtualPages * PageSize;
+    unsigned i, size = numVirtualPages * PageSize, j;
 
     ASSERT(numVirtualPages+numPagesAllocated <= NumPhysPages);                // check we're not trying
                                                                                 // to run anything too big --
@@ -147,25 +199,40 @@ ProcessAddressSpace::ProcessAddressSpace(ProcessAddressSpace *parentSpace)
     // first, set up the translation
     TranslationEntry* parentPageTable = parentSpace->GetPageTable();
     KernelPageTable = new TranslationEntry[numVirtualPages];
+		//Edited_Start
+		void * temp;
+    int pageTemp;
     for (i = 0; i < numVirtualPages; i++) {
-        KernelPageTable[i].virtualPage = i;
-        KernelPageTable[i].physicalPage = i+numPagesAllocated;
-        KernelPageTable[i].valid = parentPageTable[i].valid;
+			if(parentPageTable[i].valid && parentPageTable[i].shared) KernelPageTable[i].physicalPage = parentPageTable[i].physicalPage;
+			else if(parentPageTable[i].valid && !(parentPageTable[i].shared))
+			{
+				temp = (void *)machine->ListOfPagesAvailable->SortedRemove(&pageTemp);
+			  KernelPageTable[i].physicalPage = pageTemp;
+				bzero((((char *)machine->mainMemory)+(pageTemp*PageSize)),PageSize);
+				// zero out the entire address space, to zero the unitialized data segment
+				// and the stack segmentKernelPageTable[i].physicalPage = pageTemp;
+				for(j=0;j<PageSize;j++){
+					machine->mainMemory[((KernelPageTable[i].physicalPage)*PageSize)+j] = machine->mainMemory[(((*(parentPageTable+i)).physicalPage)*PageSize)+j];
+					}
+				numPagesAllocated++;
+			}
+			  KernelPageTable[i].virtualPage = i;
+				KernelPageTable[i].valid = parentPageTable[i].valid;
         KernelPageTable[i].use = parentPageTable[i].use;
         KernelPageTable[i].dirty = parentPageTable[i].dirty;
         KernelPageTable[i].readOnly = parentPageTable[i].readOnly;  	// if the code segment was entirely on
                                         			// a separate page, we could set its
                                         			// pages to be read-only
+				KernelPageTable[i].shared = parentPageTable[i].shared;
     }
 
-    // Copy the contents
-    unsigned startAddrParent = parentPageTable[0].physicalPage*PageSize;
+		// Copy the contents
+    /*unsigned startAddrParent = parentPageTable[0].physicalPage*PageSize;
     unsigned startAddrChild = numPagesAllocated*PageSize;
     for (i=0; i<size; i++) {
        machine->mainMemory[startAddrChild+i] = machine->mainMemory[startAddrParent+i];
-    }
+    }*/
 
-    numPagesAllocated += numVirtualPages;
 }
 
 //----------------------------------------------------------------------
@@ -175,7 +242,18 @@ ProcessAddressSpace::ProcessAddressSpace(ProcessAddressSpace *parentSpace)
 
 ProcessAddressSpace::~ProcessAddressSpace()
 {
-   delete KernelPageTable;
+	//Edited_Start
+	int pageTemp,i;
+    for (i = 0; i < numVirtualPages; i++) {
+	if((KernelPageTable[i].valid == TRUE) && (KernelPageTable[i].shared != TRUE)){
+		numPagesAllocated--;
+		pageTemp = KernelPageTable[i].physicalPage;
+		KernelPageTable[i].valid = FALSE;
+		machine->ListOfPagesAvailable->SortedInsert(NULL,pageTemp);
+    		}
+	}
+	//Edited_Stop
+	 delete KernelPageTable;
 }
 
 //----------------------------------------------------------------------
@@ -197,7 +275,7 @@ ProcessAddressSpace::InitUserModeCPURegisters()
 	machine->WriteRegister(i, 0);
 
     // Initial program counter -- must be location of "Start"
-    machine->WriteRegister(PCReg, 0);	
+    machine->WriteRegister(PCReg, 0);
 
     // Need to also tell MIPS where next instruction is, because
     // of branch delay possibility
@@ -218,7 +296,7 @@ ProcessAddressSpace::InitUserModeCPURegisters()
 //	For now, nothing!
 //----------------------------------------------------------------------
 
-void ProcessAddressSpace::SaveContextOnSwitch() 
+void ProcessAddressSpace::SaveContextOnSwitch()
 {}
 
 //----------------------------------------------------------------------
@@ -229,7 +307,7 @@ void ProcessAddressSpace::SaveContextOnSwitch()
 //      For now, tell the machine where to find the page table.
 //----------------------------------------------------------------------
 
-void ProcessAddressSpace::RestoreContextOnSwitch() 
+void ProcessAddressSpace::RestoreContextOnSwitch()
 {
     machine->KernelPageTable = KernelPageTable;
     machine->KernelPageTableSize = numVirtualPages;
