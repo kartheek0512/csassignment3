@@ -90,15 +90,17 @@ Machine::ReadMem(int addr, int size, int *value)
     int data;
     ExceptionType exception;
     int physicalAddress;
-		//Edited_Start
-		int tempPageFrame=(physicalAddress%NumPhysPages);
-		//Edited_Stop
+
 
     DEBUG('a', "Reading VA 0x%x, size %d\n", addr, size);
 
     exception = Translate(addr, &physicalAddress, size, FALSE);
-    if (exception != NoException) {
-	machine->RaiseException(exception, addr);
+		//Edited_Start
+		int tempPageFrame=(physicalAddress%NumPhysPages);
+		//Edited_Stop
+
+  if (exception != NoException) {
+			machine->RaiseException(exception, addr);
 	return FALSE;
     }
 //Edited_Start
@@ -147,15 +149,15 @@ Machine::WriteMem(int addr, int size, int value)
 {
     ExceptionType exception;
     int physicalAddress;
-		//Edited_Start
-		int tempPageFrame=(physicalAddress%NumPhysPages);
-		//Edited_Stop
-
 
     DEBUG('a', "Writing VA 0x%x, size %d, value 0x%x\n", addr, size, value);
 
     exception = Translate(addr, &physicalAddress, size, TRUE);
-    if (exception != NoException) {
+    //Edited_Start
+		int tempPageFrame=(physicalAddress%NumPhysPages);
+		//Edited_Stop
+  
+  if (exception != NoException) {
 	machine->RaiseException(exception, addr);
 	return FALSE;
     }
