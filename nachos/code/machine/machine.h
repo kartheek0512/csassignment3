@@ -83,6 +83,7 @@ public:
 	unsigned threadId;
 	TranslationEntry * pageTableEntry;
 	unsigned numAddrSpacesAttached;
+	int last_access_time;
 };
 //Edited_Stop
 
