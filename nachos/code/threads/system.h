@@ -21,6 +21,7 @@
 enum PageReplacementAlgoType {None, RANDOM, FIFO, LRU, LRU_CLOCK};
 extern PageReplacementAlgoType pageReplacementAlgo;
 extern unsigned numPagesShared;
+extern int clockHand;
 //Edited_Stop
 
 #define MAX_THREAD_COUNT 1000

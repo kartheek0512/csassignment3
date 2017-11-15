@@ -38,6 +38,7 @@ int schedulingAlgo;			// Scheduling algorithm to simulate
 //Edited_Start
 PageReplacementAlgoType pageReplacementAlgo = None;
 unsigned numPagesShared = 0;
+int clockHand;
 //Edited_Stop
 char **batchProcesses;			// Names of batch processes
 int *priority;				// Process priority

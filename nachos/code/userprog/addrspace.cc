@@ -34,6 +34,7 @@ void doBackUp(unsigned pageToBeBacked){
 
 unsigned getPageToBeReplaced(int exceptThisPage){
 	int pageToBeReplaced;
+	int temp_min,tempClockHand;
 	switch(pageReplacementAlgo){
 		case RANDOM:
 			pageToBeReplaced = Random()%NumPhysPages;
@@ -48,34 +49,36 @@ unsigned getPageToBeReplaced(int exceptThisPage){
 
 			break;
 		case LRU:
-			int pageToBeReplaced=0;
-			int temp_min= stats->totalTicks;
+			pageToBeReplaced = 0;
+			temp_min= stats->totalTicks;
 			for (int i=0; i< NumPhysPages; i++) {
-				if(machine->physPageWhereAbouts[i].lastAccessTime < temp_min && !machine->physPageWhereAbouts[i].pageTableEntry->shared ){
+				if((i != exceptThisPage) && (machine->physPageWhereAbouts[i].lastAccessTime < temp_min) && !machine->physPageWhereAbouts[i].pageTableEntry->shared ){
 					temp_min=machine->physPageWhereAbouts[i].lastAccessTime;
 					pageToBeReplaced=i;
 				}
 			}
+			(machine->physPageWhereAbouts[pageToBeReplaced].pageTableEntry)->valid = FALSE;
 			if(machine->physPageWhereAbouts[pageToBeReplaced].pageTableEntry->dirty) doBackUp(pageToBeReplaced);
+			machine->physPageWhereAbouts[pageToBeReplaced].numAddrSpacesAttached--;
 			numPagesAllocated--;
 			return pageToBeReplaced;
-			break;
-		case LRU_CLOCK:
-			int pageToBeReplaced=0;
-			int tempClockHand=clockHand;
+		case LRU_CLOCK :
+			pageToBeReplaced=0;
+			tempClockHand=clockHand;
 			for(int i=0;i<=NumPhysPages;i++){
-				if(machine->physPageWhereAbouts[tempClockHand].refBit && !machine->physPageWhereAbouts[tempClockHand].pageTableEntry->shared){
+				if((i != exceptThisPage) && machine->physPageWhereAbouts[tempClockHand].refBit && !machine->physPageWhereAbouts[tempClockHand].pageTableEntry->shared){
 					machine->physPageWhereAbouts[tempClockHand].refBit=0;
 				}
-				else if(!machine->physPageWhereAbouts[tempClockHand].refBit && !machine->physPageWhereAbouts[tempClockHand].pageTableEntry->shared && (tempClockHand!= exceptThisPage ) {
+				else if(!machine->physPageWhereAbouts[tempClockHand].refBit && !machine->physPageWhereAbouts[tempClockHand].pageTableEntry->shared && (tempClockHand!= exceptThisPage)) {
 					clockHand=tempClockHand;
 					pageToBeReplaced=clockHand;
 					break;
 				}
 				tempClockHand=(tempClockHand+1)%NumPhysPages;
 			}
-
+			(machine->physPageWhereAbouts[pageToBeReplaced].pageTableEntry)->valid = FALSE;
 			if(machine->physPageWhereAbouts[pageToBeReplaced].pageTableEntry->dirty) doBackUp(pageToBeReplaced);
+			machine->physPageWhereAbouts[pageToBeReplaced].numAddrSpacesAttached--;
 			numPagesAllocated--;
 			return pageToBeReplaced;
 			break;
@@ -400,6 +403,7 @@ ProcessAddressSpace::ProcessAddressSpace(ProcessAddressSpace *parentSpace, unsig
 				machine->physPageWhereAbouts[pageTemp].threadId = childPID;
 				machine->physPageWhereAbouts[pageTemp].numAddrSpacesAttached = 1;
 				machine->physPageWhereAbouts[pageTemp].pageTableEntry = &KernelPageTable[i];
+				machine->physPageWhereAbouts[parentPageTable[i].physicalPage].lastAccessTime = stats->totalTicks;
 				machine->physPageWhereAbouts[pageTemp].lastAccessTime=stats->totalTicks;	//set lastAccessTime for newly allocated shmem
 				machine->physPageWhereAbouts[pageTemp].refBit=1;
 
