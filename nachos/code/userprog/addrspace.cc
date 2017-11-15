@@ -26,12 +26,11 @@ void doBackUp(unsigned pageToBeBacked){
 	tempPageTableEntry->valid = FALSE;
 	tempPageTableEntry->loadFromBackUp = TRUE;
 	tempPageTableEntry->dirty = FALSE;
+	tempPageTableEntry->shared = FALSE;
 	NachOSThread * tempThread = threadArray[machine->physPageWhereAbouts[pageToBeBacked].threadId];
-	machine->physPageWhereAbouts[pageToBeBacked].numAddrSpacesAttached--;
 	char * tempBackUp = tempThread->space->GetBackUp();
 	int i;
-	for (i = 0; i < PageSize; i++)
-      tempBackUp[(tempPageTableEntry->virtualPage*PageSize) + i] = machine->mainMemory[(pageToBeBacked*PageSize) + i];
+	for (i = 0; i < PageSize; i++) tempBackUp[(tempPageTableEntry->virtualPage*PageSize) + i] = machine->mainMemory[(pageToBeBacked*PageSize) + i];
 }
 
 unsigned getPageToBeReplaced(int exceptThisPage){
@@ -42,6 +41,10 @@ unsigned getPageToBeReplaced(int exceptThisPage){
 			while((pageToBeReplaced<0) || (pageToBeReplaced == exceptThisPage) || ((machine->physPageWhereAbouts[pageToBeReplaced].numAddrSpacesAttached > 0) && machine->physPageWhereAbouts[pageToBeReplaced].pageTableEntry->shared == TRUE))
 				pageToBeReplaced = Random()%NumPhysPages;
 			if((machine->physPageWhereAbouts[pageToBeReplaced].numAddrSpacesAttached > 0) && machine->physPageWhereAbouts[pageToBeReplaced].pageTableEntry->dirty) doBackUp(pageToBeReplaced);
+			if((machine->physPageWhereAbouts[pageToBeReplaced].numAddrSpacesAttached > 0)){
+				machine->physPageWhereAbouts[pageToBeReplaced].numAddrSpacesAttached--;
+				numPagesAllocated--;
+			}
 			return pageToBeReplaced;
 			break;
 		case FIFO:
@@ -146,15 +149,15 @@ ProcessAddressSpace::pageFaultHandler(unsigned faultVAddr)
 	machine->physPageWhereAbouts[pageTemp].threadId = currentThread->GetPID();
 	machine->physPageWhereAbouts[pageTemp].numAddrSpacesAttached = 1;
 	machine->physPageWhereAbouts[pageTemp].pageTableEntry = &KernelPageTable[faultVPage];
-	KernelPageTable[faultVPage].physicalPage = pageTemp;
-	KernelPageTable[faultVPage].valid = TRUE;
-	KernelPageTable[faultVPage].use = FALSE;
-	KernelPageTable[faultVPage].dirty = FALSE;
-	KernelPageTable[faultVPage].readOnly = FALSE;  // if the code segment was entirely on
+	machine->KernelPageTable[faultVPage].physicalPage = pageTemp;
+	machine->KernelPageTable[faultVPage].valid = TRUE;
+	machine->KernelPageTable[faultVPage].use = FALSE;
+	machine->KernelPageTable[faultVPage].dirty = FALSE;
+	machine->KernelPageTable[faultVPage].readOnly = FALSE;  // if the code segment was entirely on
 					// a separate page, we could set its
 					// pages to be read-only
-	KernelPageTable[faultVPage].shared = FALSE;
-	if(KernelPageTable[faultVPage].loadFromBackUp)
+	machine->KernelPageTable[faultVPage].shared = FALSE;
+	if(machine->KernelPageTable[faultVPage].loadFromBackUp)
 	{
 		int i;
 		for (i = 0; i < PageSize; i++) machine->mainMemory[(pageTemp*PageSize) + i] = backUp[(faultVPage*PageSize) + i];
@@ -366,7 +369,7 @@ ProcessAddressSpace::ProcessAddressSpace(ProcessAddressSpace *parentSpace, unsig
 					machine->mainMemory[((KernelPageTable[i].physicalPage)*PageSize)+j] = machine->mainMemory[((parentPageTable[i].physicalPage)*PageSize)+j];
 					if(parentPageTable[i].loadFromBackUp || parentPageTable[i].dirty){
 							KernelPageTable[i].loadFromBackUp = TRUE;
-							backUp[(KernelPageTable[i].physicalPage)*PageSize + j] = machine->mainMemory[(((*(parentPageTable+i)).physicalPage)*PageSize)+j];
+							backUp[(i*PageSize) + j] = machine->mainMemory[(((*(parentPageTable+i)).physicalPage)*PageSize)+j];
 						}
 					}
 				numPagesAllocated++;
@@ -374,7 +377,7 @@ ProcessAddressSpace::ProcessAddressSpace(ProcessAddressSpace *parentSpace, unsig
 			else {
 				if(parentPageTable[i].loadFromBackUp){
 					KernelPageTable[i].loadFromBackUp = TRUE;
-					backUp[(KernelPageTable[i].physicalPage)*PageSize + j] = *(parentSpace->GetBackUp() + (i*PageSize) + j);
+					for(j=0;j<PageSize;j++) backUp[(i*PageSize) + j] = *(parentSpace->GetBackUp() + (i*PageSize) + j);
 				}
 			}
 			  KernelPageTable[i].virtualPage = i;
