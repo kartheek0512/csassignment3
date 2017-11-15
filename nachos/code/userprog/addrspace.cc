@@ -22,15 +22,15 @@
 //Edited_Start
 
 void doBackUp(unsigned pageToBeBacked){
+	printf("backUpFunc %d\n", pageToBeBacked);
 	TranslationEntry * tempPageTableEntry = machine->physPageWhereAbouts[pageToBeBacked].pageTableEntry;
-	tempPageTableEntry->valid = FALSE;
 	tempPageTableEntry->loadFromBackUp = TRUE;
 	tempPageTableEntry->dirty = FALSE;
 	tempPageTableEntry->shared = FALSE;
 	NachOSThread * tempThread = threadArray[machine->physPageWhereAbouts[pageToBeBacked].threadId];
 	char * tempBackUp = tempThread->space->GetBackUp();
 	int i;
-	for (i = 0; i < PageSize; i++) tempBackUp[(tempPageTableEntry->virtualPage*PageSize) + i] = machine->mainMemory[(pageToBeBacked*PageSize) + i];
+	for (i = 0; i < PageSize; i++) tempBackUp[((tempPageTableEntry->virtualPage)*PageSize) + i] = machine->mainMemory[(pageToBeBacked*PageSize) + i];
 }
 
 unsigned getPageToBeReplaced(int exceptThisPage){
@@ -38,15 +38,14 @@ unsigned getPageToBeReplaced(int exceptThisPage){
 	switch(pageReplacementAlgo){
 		case RANDOM:
 			pageToBeReplaced = Random()%NumPhysPages;
-			while((pageToBeReplaced<0) || (pageToBeReplaced == exceptThisPage) || ((machine->physPageWhereAbouts[pageToBeReplaced].numAddrSpacesAttached > 0) && machine->physPageWhereAbouts[pageToBeReplaced].pageTableEntry->shared == TRUE))
+			while((pageToBeReplaced<0) || (pageToBeReplaced == exceptThisPage) || (((machine->physPageWhereAbouts[pageToBeReplaced]).pageTableEntry)->shared == TRUE))
 				pageToBeReplaced = Random()%NumPhysPages;
-			if((machine->physPageWhereAbouts[pageToBeReplaced].numAddrSpacesAttached > 0) && machine->physPageWhereAbouts[pageToBeReplaced].pageTableEntry->dirty) doBackUp(pageToBeReplaced);
-			if((machine->physPageWhereAbouts[pageToBeReplaced].numAddrSpacesAttached > 0)){
+			(machine->physPageWhereAbouts[pageToBeReplaced].pageTableEntry)->valid = FALSE;
+			if(((machine->physPageWhereAbouts[pageToBeReplaced]).pageTableEntry)->dirty) doBackUp(pageToBeReplaced);
 				machine->physPageWhereAbouts[pageToBeReplaced].numAddrSpacesAttached--;
 				numPagesAllocated--;
-			}
+			printf("replaceFunc %d\n", pageToBeReplaced);
 			return pageToBeReplaced;
-			break;
 		case FIFO:
 			break;
 		case LRU:
@@ -82,6 +81,7 @@ ProcessAddressSpace::GetNumVPagesShared()
 int
 ProcessAddressSpace::ShmAllocate(unsigned reqPages)
 {
+
 	numVPagesShared += reqPages;
 	numPagesShared += reqPages;
 	TranslationEntry * oldPageTable = KernelPageTable;
@@ -99,6 +99,9 @@ ProcessAddressSpace::ShmAllocate(unsigned reqPages)
 		KernelPageTable[i].readOnly = oldPageTable[i].readOnly;
 		KernelPageTable[i].shared = oldPageTable[i].shared;
 		KernelPageTable[i].loadFromBackUp = oldPageTable[i].loadFromBackUp;
+		machine->physPageWhereAbouts[oldPageTable[i].physicalPage].threadId = currentThread->GetPID();
+		machine->physPageWhereAbouts[oldPageTable[i].physicalPage].numAddrSpacesAttached = 1;
+		machine->physPageWhereAbouts[oldPageTable[i].physicalPage].pageTableEntry = KernelPageTable+i;
 	}
 	void * temp;
 	int pageTemp;
@@ -107,6 +110,7 @@ ProcessAddressSpace::ShmAllocate(unsigned reqPages)
 		if(!machine->ListOfPagesAvailable->IsEmpty()) temp = (void *)machine->ListOfPagesAvailable->SortedRemove(&pageTemp);
 		else {
 			pageTemp = getPageToBeReplaced(-1);
+			printf("Shm Caller\n");
 		}
 		stats->numPageFaults++;
 		KernelPageTable[i].virtualPage = i;
@@ -124,7 +128,7 @@ ProcessAddressSpace::ShmAllocate(unsigned reqPages)
 		KernelPageTable[i].loadFromBackUp = FALSE;
 		machine->physPageWhereAbouts[pageTemp].threadId = currentThread->GetPID();
 		machine->physPageWhereAbouts[pageTemp].numAddrSpacesAttached = 1;
-		machine->physPageWhereAbouts[pageTemp].pageTableEntry = &KernelPageTable[i];
+		machine->physPageWhereAbouts[pageTemp].pageTableEntry = KernelPageTable+i;
 	}
 	numPagesAllocated += reqPages;
 	delete oldPageTable;
@@ -144,11 +148,12 @@ ProcessAddressSpace::pageFaultHandler(unsigned faultVAddr)
 	if(!machine->ListOfPagesAvailable->IsEmpty())temp = (void *)machine->ListOfPagesAvailable->SortedRemove(&pageTemp);
 	else {
 		pageTemp = getPageToBeReplaced(-1);
+		printf("pageFaultHandler\n" );
 	}
 	numPagesAllocated++;
 	machine->physPageWhereAbouts[pageTemp].threadId = currentThread->GetPID();
 	machine->physPageWhereAbouts[pageTemp].numAddrSpacesAttached = 1;
-	machine->physPageWhereAbouts[pageTemp].pageTableEntry = &KernelPageTable[faultVPage];
+	machine->physPageWhereAbouts[pageTemp].pageTableEntry = machine->KernelPageTable + faultVPage;
 	machine->KernelPageTable[faultVPage].physicalPage = pageTemp;
 	machine->KernelPageTable[faultVPage].valid = TRUE;
 	machine->KernelPageTable[faultVPage].use = FALSE;
@@ -160,7 +165,7 @@ ProcessAddressSpace::pageFaultHandler(unsigned faultVAddr)
 	if(machine->KernelPageTable[faultVPage].loadFromBackUp)
 	{
 		int i;
-		for (i = 0; i < PageSize; i++) machine->mainMemory[(pageTemp*PageSize) + i] = backUp[(faultVPage*PageSize) + i];
+		for (i = 0; i < PageSize; i++) machine->mainMemory[(pageTemp*PageSize) + i] = *(currentThread->space->GetBackUp() + (faultVPage*PageSize) + i);
 	}
 	else
 	{
@@ -322,11 +327,12 @@ ProcessAddressSpace::ProcessAddressSpace(OpenFile *executable)
 
 ProcessAddressSpace::ProcessAddressSpace(ProcessAddressSpace *parentSpace, unsigned childPID)
 {
-    numVirtualPages = parentSpace->GetNumPages();
+		numVirtualPages = parentSpace->GetNumPages();
     unsigned i, size = numVirtualPages * PageSize, j;
 		//Edited_Start
 		numVPagesShared = parentSpace->GetNumVPagesShared();
-		backUp = new char[(numVirtualPages - numVPagesShared)* PageSize];
+		//backUp = new char[(numVirtualPages - numVPagesShared)* PageSize];
+		backUp = new char[numVirtualPages*PageSize];
 		//Edited_Stop
 
     if(pageReplacementAlgo == None){
@@ -350,14 +356,16 @@ ProcessAddressSpace::ProcessAddressSpace(ProcessAddressSpace *parentSpace, unsig
 			if(parentPageTable[i].valid && parentPageTable[i].shared)
 			{
 				KernelPageTable[i].physicalPage = parentPageTable[i].physicalPage;
-				machine->physPageWhereAbouts[pageTemp].numAddrSpacesAttached++;
+				machine->physPageWhereAbouts[parentPageTable[i].physicalPage].numAddrSpacesAttached++;
 			}
 			else if(parentPageTable[i].valid && !(parentPageTable[i].shared))
 			{
 				if(!machine->ListOfPagesAvailable->IsEmpty())temp = (void *)machine->ListOfPagesAvailable->SortedRemove(&pageTemp);
 				else {
 					pageTemp = getPageToBeReplaced(parentPageTable[i].physicalPage);
+					printf("Fork\n" );
 				}
+				stats->numPageFaults++;
 				machine->physPageWhereAbouts[pageTemp].threadId = childPID;
 				machine->physPageWhereAbouts[pageTemp].numAddrSpacesAttached = 1;
 				machine->physPageWhereAbouts[pageTemp].pageTableEntry = &KernelPageTable[i];

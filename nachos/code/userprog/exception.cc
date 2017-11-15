@@ -218,6 +218,7 @@ ExceptionHandler(ExceptionType which)
        machine->WriteRegister(NextPCReg, machine->ReadRegister(NextPCReg)+4);
     }
     else if ((which == SyscallException) && (type == SysCall_PrintString)) {
+      printf("printstring enterd\n");
        vaddr = machine->ReadRegister(4);
       while (!machine->ReadMem(vaddr, 1, &memval));
        while ((*(char*)&memval) != '\0') {
@@ -329,11 +330,13 @@ ExceptionHandler(ExceptionType which)
     else if (which == PageFaultException)
     {
       currentThread->SortedInsertInWaitQueue(1000 + stats->totalTicks);
+      IntStatus oldLevel = interrupt->SetLevel(IntOff);  // disable interrupts
       unsigned faultVAddr = machine->ReadRegister(BadVAddrReg);
       currentThread->space->pageFaultHandler(faultVAddr);
+      (void) interrupt->SetLevel(oldLevel);  // re-enable interrupts
     }
     else {
-	printf("Unexpected user mode exception %d %d\n", which, type);
+      	printf("Unexpected user mode exception %d %d\n", which, type);
 	ASSERT(FALSE);
     }
 }

@@ -61,6 +61,11 @@ Machine::Machine(bool debug)
     int i;
 		ListOfPagesAvailable = new List();
 		physPageWhereAbouts = new physicalPageMetaData[NumPhysPages];
+		for(i=0; i<NumPhysPages; i++){
+			physPageWhereAbouts[i].numAddrSpacesAttached = 0;
+			physPageWhereAbouts[i].pageTableEntry = NULL;
+			physPageWhereAbouts[i].threadId = -1;
+		}
 		for (i=(NumPhysPages-1);i>=0;i--){
 	     ListOfPagesAvailable->SortedInsert(NULL,i);
 	    }
@@ -114,7 +119,7 @@ Machine::~Machine()
 void
 Machine::RaiseException(ExceptionType which, int badVAddr)
 {
-    DEBUG('m', "Exception: %s\n", exceptionNames[which]);
+		DEBUG('m', "Exception: %s\n", exceptionNames[which]);
 
 //  ASSERT(interrupt->getStatus() == UserMode);
     registers[BadVAddrReg] = badVAddr;
@@ -122,6 +127,7 @@ Machine::RaiseException(ExceptionType which, int badVAddr)
     interrupt->setStatus(SystemMode);
     ExceptionHandler(which);		// interrupts are enabled at this point
     interrupt->setStatus(UserMode);
+		
 }
 
 //----------------------------------------------------------------------

@@ -368,9 +368,7 @@ NachOSThread::PutThreadToSleep ()
 
     ASSERT(this == currentThread);
     ASSERT(interrupt->getLevel() == IntOff);
-
     DEBUG('t', "Sleeping thread \"%s\"\n", getName());
-
     if (status == RUNNING) {
        stats->cpu_time += (stats->totalTicks - cpu_burst_start_time);
        if ((stats->totalTicks - cpu_burst_start_time) > 0) {
@@ -400,7 +398,6 @@ NachOSThread::PutThreadToSleep ()
 	interrupt->Idle();	// no one to run, wait for an interrupt
         nextThread = scheduler->SelectNextReadyThread();
     }
-
     scheduler->ScheduleThread(nextThread); // returns when we've been signalled
 }
 
