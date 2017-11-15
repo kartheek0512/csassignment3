@@ -22,7 +22,6 @@
 //Edited_Start
 
 void doBackUp(unsigned pageToBeBacked){
-	printf("backUpFunc %d\n", pageToBeBacked);
 	TranslationEntry * tempPageTableEntry = machine->physPageWhereAbouts[pageToBeBacked].pageTableEntry;
 	tempPageTableEntry->loadFromBackUp = TRUE;
 	tempPageTableEntry->dirty = FALSE;
@@ -44,9 +43,9 @@ unsigned getPageToBeReplaced(int exceptThisPage){
 			if(((machine->physPageWhereAbouts[pageToBeReplaced]).pageTableEntry)->dirty) doBackUp(pageToBeReplaced);
 				machine->physPageWhereAbouts[pageToBeReplaced].numAddrSpacesAttached--;
 				numPagesAllocated--;
-			printf("replaceFunc %d\n", pageToBeReplaced);
 			return pageToBeReplaced;
 		case FIFO:
+
 			break;
 		case LRU:
 			break;
@@ -110,7 +109,6 @@ ProcessAddressSpace::ShmAllocate(unsigned reqPages)
 		if(!machine->ListOfPagesAvailable->IsEmpty()) temp = (void *)machine->ListOfPagesAvailable->SortedRemove(&pageTemp);
 		else {
 			pageTemp = getPageToBeReplaced(-1);
-			printf("Shm Caller\n");
 		}
 		stats->numPageFaults++;
 		KernelPageTable[i].virtualPage = i;
@@ -148,7 +146,6 @@ ProcessAddressSpace::pageFaultHandler(unsigned faultVAddr)
 	if(!machine->ListOfPagesAvailable->IsEmpty())temp = (void *)machine->ListOfPagesAvailable->SortedRemove(&pageTemp);
 	else {
 		pageTemp = getPageToBeReplaced(-1);
-		printf("pageFaultHandler\n" );
 	}
 	numPagesAllocated++;
 	machine->physPageWhereAbouts[pageTemp].threadId = currentThread->GetPID();
