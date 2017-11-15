@@ -36,7 +36,7 @@ class ProcessAddressSpace {
 					// initializing it with the program
 					// stored in the file "executable"
 
-    ProcessAddressSpace (ProcessAddressSpace *parentSpace);	// Used by fork
+    ProcessAddressSpace (ProcessAddressSpace *parentSpace, unsigned childPID);	// Used by fork
 
     ~ProcessAddressSpace();			// De-allocate an address space
 
@@ -50,6 +50,7 @@ class ProcessAddressSpace {
     //Edited_Stop
 
     unsigned GetNumPages();
+    unsigned GetNumVPagesShared();
 
     TranslationEntry* GetPageTable();
 
@@ -58,12 +59,17 @@ class ProcessAddressSpace {
     NoffHeader noffH;
     int executableKey;
     bool executableKeyValid;
+    char *GetBackUp();
     //Edited_Stop
 
   private:
     TranslationEntry *KernelPageTable;	// Assume linear page table translation
+    //Edited_Start
+    char * backUp;
+    //Edited_Stop
 					// for now!
     unsigned int numVirtualPages;		// Number of pages in the virtual
+    unsigned  numVPagesShared;
 					// address space
 };
 

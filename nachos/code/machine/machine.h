@@ -35,7 +35,7 @@
 					// simplicity
 
 //#define NumPhysPages    32
-#define NumPhysPages 1024
+#define NumPhysPages 10
 //Edited_Start
 //const int NumPhysPages = 1024;
 //Edited_Stop
@@ -76,6 +76,15 @@ enum ExceptionType { NoException,           // Everything ok!
 #define BadVAddrReg	39	// The failing virtual address on an exception
 
 #define NumTotalRegs 	40
+
+//Edited_Start
+class physicalPageMetaData{
+public:
+	unsigned threadId;
+	TranslationEntry * pageTableEntry;
+	unsigned numAddrSpacesAttached;
+};
+//Edited_Stop
 
 // The following class defines an instruction, represented in both
 // 	undecoded binary form
@@ -166,6 +175,7 @@ class Machine {
 				// code and data, while executing
 		//Edited_Start
 		List *ListOfPagesAvailable;
+		physicalPageMetaData * physPageWhereAbouts;
 		//Edited_Stop
     int registers[NumTotalRegs]; // CPU registers, for executing user programs
 

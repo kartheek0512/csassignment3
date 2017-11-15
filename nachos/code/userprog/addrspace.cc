@@ -20,6 +20,41 @@
 #include "addrspace.h"
 
 //Edited_Start
+
+void doBackUp(unsigned pageToBeBacked){
+	TranslationEntry * tempPageTableEntry = machine->physPageWhereAbouts[pageToBeBacked].pageTableEntry;
+	tempPageTableEntry->valid = FALSE;
+	tempPageTableEntry->loadFromBackUp = TRUE;
+	tempPageTableEntry->dirty = FALSE;
+	NachOSThread * tempThread = threadArray[machine->physPageWhereAbouts[pageToBeBacked].threadId];
+	machine->physPageWhereAbouts[pageToBeBacked].numAddrSpacesAttached--;
+	char * tempBackUp = tempThread->space->GetBackUp();
+	int i;
+	for (i = 0; i < PageSize; i++)
+      tempBackUp[(tempPageTableEntry->virtualPage*PageSize) + i] = machine->mainMemory[(pageToBeBacked*PageSize) + i];
+}
+
+unsigned getPageToBeReplaced(int exceptThisPage){
+	int pageToBeReplaced;
+	switch(pageReplacementAlgo){
+		case RANDOM:
+			pageToBeReplaced = Random()%NumPhysPages;
+			while((pageToBeReplaced<0) || (pageToBeReplaced == exceptThisPage) || ((machine->physPageWhereAbouts[pageToBeReplaced].numAddrSpacesAttached > 0) && machine->physPageWhereAbouts[pageToBeReplaced].pageTableEntry->shared == TRUE))
+				pageToBeReplaced = Random()%NumPhysPages;
+			if((machine->physPageWhereAbouts[pageToBeReplaced].numAddrSpacesAttached > 0) && machine->physPageWhereAbouts[pageToBeReplaced].pageTableEntry->dirty) doBackUp(pageToBeReplaced);
+			return pageToBeReplaced;
+			break;
+		case FIFO:
+			break;
+		case LRU:
+			break;
+		case LRU_CLOCK:
+			break;
+		default:
+			ASSERT(FALSE);
+	}
+}
+
 List * ListOfExecutables = new List();
 executableEntry::executableEntry(OpenFile *executableGiven)
 {
@@ -29,9 +64,23 @@ executableEntry::executableEntry(OpenFile *executableGiven)
 unsigned executableCount=0;
 //Edited_Stop
 
+char *
+ProcessAddressSpace::GetBackUp()
+{
+	return this->backUp;
+}
+
+unsigned
+ProcessAddressSpace::GetNumVPagesShared()
+{
+	return this->numVPagesShared;
+}
+
 int
 ProcessAddressSpace::ShmAllocate(unsigned reqPages)
 {
+	numVPagesShared += reqPages;
+	numPagesShared += reqPages;
 	TranslationEntry * oldPageTable = KernelPageTable;
 	unsigned oldNumVirtualPages = numVirtualPages;
 	numVirtualPages = oldNumVirtualPages + reqPages;
@@ -46,12 +95,16 @@ ProcessAddressSpace::ShmAllocate(unsigned reqPages)
 		KernelPageTable[i].dirty = oldPageTable[i].dirty;
 		KernelPageTable[i].readOnly = oldPageTable[i].readOnly;
 		KernelPageTable[i].shared = oldPageTable[i].shared;
+		KernelPageTable[i].loadFromBackUp = oldPageTable[i].loadFromBackUp;
 	}
 	void * temp;
 	int pageTemp;
 	for(i=oldNumVirtualPages; i<numVirtualPages; i++)
 	{
-		temp = (void *)machine->ListOfPagesAvailable->SortedRemove(&pageTemp);
+		if(!machine->ListOfPagesAvailable->IsEmpty()) temp = (void *)machine->ListOfPagesAvailable->SortedRemove(&pageTemp);
+		else {
+			pageTemp = getPageToBeReplaced(-1);
+		}
 		stats->numPageFaults++;
 		KernelPageTable[i].virtualPage = i;
 		KernelPageTable[i].physicalPage = pageTemp;
@@ -65,6 +118,10 @@ ProcessAddressSpace::ShmAllocate(unsigned reqPages)
 						// a separate page, we could set its
 						// pages to be read-only
 		KernelPageTable[i].shared = TRUE;
+		KernelPageTable[i].loadFromBackUp = FALSE;
+		machine->physPageWhereAbouts[pageTemp].threadId = currentThread->GetPID();
+		machine->physPageWhereAbouts[pageTemp].numAddrSpacesAttached = 1;
+		machine->physPageWhereAbouts[pageTemp].pageTableEntry = &KernelPageTable[i];
 	}
 	numPagesAllocated += reqPages;
 	delete oldPageTable;
@@ -76,25 +133,40 @@ ProcessAddressSpace::ShmAllocate(unsigned reqPages)
 void
 ProcessAddressSpace::pageFaultHandler(unsigned faultVAddr)
 {
+	ASSERT((NumPhysPages - numPagesShared) > 0)
 	stats->numPageFaults++;
 	void *temp;
 	int pageTemp;
-	temp = (void *)machine->ListOfPagesAvailable->SortedRemove(&pageTemp);
-	numPagesAllocated++;
 	unsigned faultVPage = faultVAddr/PageSize;
-	machine->KernelPageTable[faultVPage].physicalPage = pageTemp;
-	machine->KernelPageTable[faultVPage].valid = TRUE;
-	machine->KernelPageTable[faultVPage].use = FALSE;
-	machine->KernelPageTable[faultVPage].dirty = FALSE;
-	machine->KernelPageTable[faultVPage].readOnly = FALSE;  // if the code segment was entirely on
+	if(!machine->ListOfPagesAvailable->IsEmpty())temp = (void *)machine->ListOfPagesAvailable->SortedRemove(&pageTemp);
+	else {
+		pageTemp = getPageToBeReplaced(-1);
+	}
+	numPagesAllocated++;
+	machine->physPageWhereAbouts[pageTemp].threadId = currentThread->GetPID();
+	machine->physPageWhereAbouts[pageTemp].numAddrSpacesAttached = 1;
+	machine->physPageWhereAbouts[pageTemp].pageTableEntry = &KernelPageTable[faultVPage];
+	KernelPageTable[faultVPage].physicalPage = pageTemp;
+	KernelPageTable[faultVPage].valid = TRUE;
+	KernelPageTable[faultVPage].use = FALSE;
+	KernelPageTable[faultVPage].dirty = FALSE;
+	KernelPageTable[faultVPage].readOnly = FALSE;  // if the code segment was entirely on
 					// a separate page, we could set its
 					// pages to be read-only
-	machine->KernelPageTable[faultVPage].shared = FALSE;
-	ASSERT(currentThread->space->executableKeyValid);
-	executableEntry * tempExecutableEntry = (executableEntry *)ListOfExecutables->Search(currentThread->space->executableKey);
-	NoffHeader noffH = currentThread->space->noffH;
-	tempExecutableEntry->executable->ReadAt(&(machine->mainMemory[pageTemp * PageSize]),
-                        PageSize, noffH.code.inFileAddr + faultVPage * PageSize);
+	KernelPageTable[faultVPage].shared = FALSE;
+	if(KernelPageTable[faultVPage].loadFromBackUp)
+	{
+		int i;
+		for (i = 0; i < PageSize; i++) machine->mainMemory[(pageTemp*PageSize) + i] = backUp[(faultVPage*PageSize) + i];
+	}
+	else
+	{
+		ASSERT(currentThread->space->executableKeyValid);
+		executableEntry * tempExecutableEntry = (executableEntry *)ListOfExecutables->Search(currentThread->space->executableKey);
+		NoffHeader noffH = currentThread->space->noffH;
+		tempExecutableEntry->executable->ReadAt(&(machine->mainMemory[pageTemp * PageSize]),
+	                        PageSize, noffH.code.inFileAddr + faultVPage * PageSize);
+	}
 }
 
 //Edited_Stop
@@ -138,6 +210,9 @@ SwapHeader (NoffHeader *noffH)
 
 ProcessAddressSpace::ProcessAddressSpace(OpenFile *executable)
 {
+		//Edited_Start
+		numVPagesShared = 0;
+		//Edited_Stop
     NoffHeader noffH;
     unsigned int i, size;
     unsigned vpn, offset;
@@ -163,10 +238,19 @@ ProcessAddressSpace::ProcessAddressSpace(OpenFile *executable)
     numVirtualPages = divRoundUp(size, PageSize);
     size = numVirtualPages * PageSize;
 
-    ASSERT(numVirtualPages+numPagesAllocated <= NumPhysPages);		// check we're not trying
-										// to run anything too big --
-										// at least until we have
-										// virtual memory
+		//Edited_Start
+		backUp = new char[size];
+		//Edited_Stop
+
+		if(pageReplacementAlgo == None){
+			ASSERT(numVirtualPages+numPagesAllocated <= NumPhysPages);
+		}                // check we're not trying
+    else{
+			ASSERT((NumPhysPages - numPagesShared) > 0);
+		}                                                                             // to run anything too big --
+
+                                                                                // at least until we have
+
 
     DEBUG('a', "Initializing address space, num pages %d, size %d\n",
 					numVirtualPages, size);
@@ -182,6 +266,7 @@ ProcessAddressSpace::ProcessAddressSpace(OpenFile *executable)
 							// a separate page, we could set its
 							// pages to be read-only
 			KernelPageTable[i].shared = FALSE;
+			KernelPageTable[i].loadFromBackUp = FALSE;
 	    }
 /*		void * temp;
     int pageTemp;
@@ -232,15 +317,22 @@ ProcessAddressSpace::ProcessAddressSpace(OpenFile *executable)
 //      We need to duplicate the address space of the parent.
 //----------------------------------------------------------------------
 
-ProcessAddressSpace::ProcessAddressSpace(ProcessAddressSpace *parentSpace)
+ProcessAddressSpace::ProcessAddressSpace(ProcessAddressSpace *parentSpace, unsigned childPID)
 {
     numVirtualPages = parentSpace->GetNumPages();
     unsigned i, size = numVirtualPages * PageSize, j;
+		//Edited_Start
+		numVPagesShared = parentSpace->GetNumVPagesShared();
+		backUp = new char[(numVirtualPages - numVPagesShared)* PageSize];
+		//Edited_Stop
 
-    ASSERT(numVirtualPages+numPagesAllocated <= NumPhysPages);                // check we're not trying
-                                                                                // to run anything too big --
-                                                                                // at least until we have
-                                                                                // virtual memory
+    if(pageReplacementAlgo == None){
+			ASSERT(numVirtualPages+numPagesAllocated <= NumPhysPages);
+		}                 // check we're not trying
+    else {
+			ASSERT((NumPhysPages - numPagesShared) > 1);                                                                            // to run anything too big --
+		}                                                                          // at least until we have
+                                                                               // virtual memory
 
     DEBUG('a', "Initializing address space, num pages %d, size %d\n",
                                         numVirtualPages, size);
@@ -251,27 +343,44 @@ ProcessAddressSpace::ProcessAddressSpace(ProcessAddressSpace *parentSpace)
 		void * temp;
     int pageTemp;
     for (i = 0; i < numVirtualPages; i++) {
+			KernelPageTable[i].loadFromBackUp = FALSE;
 			if(parentPageTable[i].valid && parentPageTable[i].shared)
 			{
 				KernelPageTable[i].physicalPage = parentPageTable[i].physicalPage;
-
+				machine->physPageWhereAbouts[pageTemp].numAddrSpacesAttached++;
 			}
 			else if(parentPageTable[i].valid && !(parentPageTable[i].shared))
 			{
-				temp = (void *)machine->ListOfPagesAvailable->SortedRemove(&pageTemp);
-			  KernelPageTable[i].physicalPage = pageTemp;
+				if(!machine->ListOfPagesAvailable->IsEmpty())temp = (void *)machine->ListOfPagesAvailable->SortedRemove(&pageTemp);
+				else {
+					pageTemp = getPageToBeReplaced(parentPageTable[i].physicalPage);
+				}
+				machine->physPageWhereAbouts[pageTemp].threadId = childPID;
+				machine->physPageWhereAbouts[pageTemp].numAddrSpacesAttached = 1;
+				machine->physPageWhereAbouts[pageTemp].pageTableEntry = &KernelPageTable[i];
+				KernelPageTable[i].physicalPage = pageTemp;
 				bzero((((char *)machine->mainMemory)+(pageTemp*PageSize)),PageSize);
 				// zero out the entire address space, to zero the unitialized data segment
 				// and the stack segmentKernelPageTable[i].physicalPage = pageTemp;
 				for(j=0;j<PageSize;j++){
-					machine->mainMemory[((KernelPageTable[i].physicalPage)*PageSize)+j] = machine->mainMemory[(((*(parentPageTable+i)).physicalPage)*PageSize)+j];
+					machine->mainMemory[((KernelPageTable[i].physicalPage)*PageSize)+j] = machine->mainMemory[((parentPageTable[i].physicalPage)*PageSize)+j];
+					if(parentPageTable[i].loadFromBackUp || parentPageTable[i].dirty){
+							KernelPageTable[i].loadFromBackUp = TRUE;
+							backUp[(KernelPageTable[i].physicalPage)*PageSize + j] = machine->mainMemory[(((*(parentPageTable+i)).physicalPage)*PageSize)+j];
+						}
 					}
 				numPagesAllocated++;
+			}
+			else {
+				if(parentPageTable[i].loadFromBackUp){
+					KernelPageTable[i].loadFromBackUp = TRUE;
+					backUp[(KernelPageTable[i].physicalPage)*PageSize + j] = *(parentSpace->GetBackUp() + (i*PageSize) + j);
+				}
 			}
 			  KernelPageTable[i].virtualPage = i;
 				KernelPageTable[i].valid = parentPageTable[i].valid;
         KernelPageTable[i].use = parentPageTable[i].use;
-        KernelPageTable[i].dirty = parentPageTable[i].dirty;
+        KernelPageTable[i].dirty = FALSE;
         KernelPageTable[i].readOnly = parentPageTable[i].readOnly;  	// if the code segment was entirely on
                                         			// a separate page, we could set its
                                         			// pages to be read-only
@@ -308,13 +417,18 @@ ProcessAddressSpace::~ProcessAddressSpace()
 	tempExecutableEntry->numAddrSpacesAttached--;
 	if(!(tempExecutableEntry->numAddrSpacesAttached>0))ListOfExecutables->SearchAndRemove(this->executableKey);
     for (i = 0; i < numVirtualPages; i++) {
-	if((KernelPageTable[i].valid == TRUE) && (KernelPageTable[i].shared != TRUE)){
-		numPagesAllocated--;
-		pageTemp = KernelPageTable[i].physicalPage;
-		KernelPageTable[i].valid = FALSE;
-		machine->ListOfPagesAvailable->SortedInsert(NULL,pageTemp);
-    		}
-	}
+			if(KernelPageTable[i].valid)
+			{
+				pageTemp = KernelPageTable[i].physicalPage;
+				machine->physPageWhereAbouts[pageTemp].numAddrSpacesAttached--;
+				if(machine->physPageWhereAbouts[pageTemp].numAddrSpacesAttached==0)
+					{
+						machine->ListOfPagesAvailable->SortedInsert(NULL,pageTemp);
+						numPagesAllocated--;
+						if(KernelPageTable[i].shared)numPagesShared--;
+					}
+			}
+		}
 	//Edited_Stop
 	 delete KernelPageTable;
 }

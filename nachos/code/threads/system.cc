@@ -35,6 +35,10 @@ bool exitThreadArray[MAX_THREAD_COUNT];  //Marks exited threads
 TimeSortedWaitQueue *sleepQueueHead;	// Needed to implement syscall_wrapper_Sleep
 
 int schedulingAlgo;			// Scheduling algorithm to simulate
+//Edited_Start
+PageReplacementAlgoType pageReplacementAlgo = None;
+unsigned numPagesShared = 0;
+//Edited_Stop
 char **batchProcesses;			// Names of batch processes
 int *priority;				// Process priority
 

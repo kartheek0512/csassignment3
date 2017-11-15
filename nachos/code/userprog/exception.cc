@@ -164,7 +164,7 @@ ExceptionHandler(ExceptionType which)
        machine->WriteRegister(NextPCReg, machine->ReadRegister(NextPCReg)+4);
 
        child = new NachOSThread("Forked thread", GET_NICE_FROM_PARENT);
-       child->space = new ProcessAddressSpace (currentThread->space);  // Duplicates the address space
+       child->space = new ProcessAddressSpace (currentThread->space, child->GetPID());  // Duplicates the address space
        child->SaveUserState ();		     		      // Duplicate the register set
        child->ResetReturnValue ();			     // Sets the return register to zero
        child->CreateThreadStack (ForkStartFunction, 0);	// Make it ready for a later context switch
@@ -311,7 +311,14 @@ ExceptionHandler(ExceptionType which)
         if(reqBytes<=0)machine->WriteRegister(2, -1);
         else {
           unsigned reqPages = divRoundUp(reqBytes, PageSize);
-          if((numPagesAllocated + reqPages) > NumPhysPages) machine->WriteRegister(2, -1);
+          if((pageReplacementAlgo == None) && (numPagesAllocated + reqPages) > NumPhysPages){
+            machine->WriteRegister(2, -1);
+            printf("NumPhysPages aren't sufficient yet pageReplacementAlgo isn't provided\nHence No Shared Mem is allocated\n");
+          }
+          else if((pageReplacementAlgo != None) && ((NumPhysPages - numPagesShared) < reqPages)){
+            machine->WriteRegister(2, -1);
+            printf("Insufficient number of pages to allocate shared memory\nIncrease NumPhysPages or either deallocate already shared memory\n");
+          }
           else  machine->WriteRegister(2, currentThread->space->ShmAllocate(reqPages));
         }
         // Advance program counters.

@@ -40,7 +40,10 @@ class TranslationEntry {
 			// page is referenced or modified.
     bool dirty;         // This bit is set by the hardware every time the
 			// page is modified.
+//Edited_Start
     bool shared;  // If true then this page is a shared one
+    bool loadFromBackUp;
+//Edited_Stop
 };
 
 #endif

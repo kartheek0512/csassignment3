@@ -17,11 +17,11 @@
 #include "timer.h"
 #include "machine.h"
 
-
-/*//Edited_Start
-extern List * ListOfPagesAvailable;
-//extern const int NumPhysPages;
-//Edited_Stop*/
+//Edited_Start
+enum PageReplacementAlgoType {None, RANDOM, FIFO, LRU, LRU_CLOCK};
+extern PageReplacementAlgoType pageReplacementAlgo;
+extern unsigned numPagesShared;
+//Edited_Stop
 
 #define MAX_THREAD_COUNT 1000
 #define MAX_BATCH_SIZE 100

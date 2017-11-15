@@ -60,6 +60,7 @@ Machine::Machine(bool debug)
 {
     int i;
 		ListOfPagesAvailable = new List();
+		physPageWhereAbouts = new physicalPageMetaData[NumPhysPages];
 		for (i=(NumPhysPages-1);i>=0;i--){
 	     ListOfPagesAvailable->SortedInsert(NULL,i);
 	    }
