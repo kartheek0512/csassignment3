@@ -47,10 +47,39 @@ unsigned getPageToBeReplaced(int exceptThisPage){
 			printf("replaceFunc %d\n", pageToBeReplaced);
 			return pageToBeReplaced;
 		case FIFO:
+
 			break;
 		case LRU:
+			int pageToBeReplaced=0;
+			int temp_min= stats->totalTicks;
+			for (int i=0; i< NumPhysPages; i++) {
+				if(machine->physPageWhereAbouts[i].lastAccessTime < temp_min && !machine->physPageWhereAbouts[i].pageTableEntry->shared ){
+					temp_min=machine->physPageWhereAbouts[i].lastAccessTime;
+					pageToBeReplaced=i;
+				}
+			}
+			if(machine->physPageWhereAbouts[pageToBeReplaced].pageTableEntry->dirty) doBackUp(pageToBeReplaced);
+			numPagesAllocated--;
+			return pageToBeReplaced;
 			break;
 		case LRU_CLOCK:
+			int pageToBeReplaced=0;
+			int tempClockHand=clockHand;
+			for(int i=0;i<=NumPhysPages;i++){
+				if(machine->physPageWhereAbouts[tempClockHand].refBit && !machine->physPageWhereAbouts[tempClockHand].pageTableEntry->shared){
+					machine->physPageWhereAbouts[tempClockHand].refBit=0;
+				}
+				else if(!machine->physPageWhereAbouts[tempClockHand].refBit && !machine->physPageWhereAbouts[tempClockHand].pageTableEntry->shared && (tempClockHand!= exceptThisPage ) {
+					clockHand=tempClockHand;
+					pageToBeReplaced=clockHand;
+					break;
+				}
+				tempClockHand=(tempClockHand+1)%NumPhysPages;
+			}
+
+			if(machine->physPageWhereAbouts[pageToBeReplaced].pageTableEntry->dirty) doBackUp(pageToBeReplaced);
+			numPagesAllocated--;
+			return pageToBeReplaced;
 			break;
 		default:
 			ASSERT(FALSE);
@@ -128,7 +157,9 @@ ProcessAddressSpace::ShmAllocate(unsigned reqPages)
 		KernelPageTable[i].loadFromBackUp = FALSE;
 		machine->physPageWhereAbouts[pageTemp].threadId = currentThread->GetPID();
 		machine->physPageWhereAbouts[pageTemp].numAddrSpacesAttached = 1;
-		machine->physPageWhereAbouts[pageTemp].pageTableEntry = KernelPageTable+i;
+		machine->physPageWhereAbouts[pageTemp].pageTableEntry = &KernelPageTable[i];
+		machine->physPageWhereAbouts[pageTemp].lastAccessTime=stats->totalTicks;	//set lastAccessTime for newly allocated shmem
+		machine->physPageWhereAbouts[pageTemp].refBit=1;
 	}
 	numPagesAllocated += reqPages;
 	delete oldPageTable;
@@ -162,6 +193,10 @@ ProcessAddressSpace::pageFaultHandler(unsigned faultVAddr)
 					// a separate page, we could set its
 					// pages to be read-only
 	machine->KernelPageTable[faultVPage].shared = FALSE;
+
+	machine->physPageWhereAbouts[pageTemp].lastAccessTime=stats->totalTicks; 			//set lastAccessTime of newly allocated page
+	machine->physPageWhereAbouts[pageTemp].refBit=1;
+
 	if(machine->KernelPageTable[faultVPage].loadFromBackUp)
 	{
 		int i;
@@ -369,6 +404,10 @@ ProcessAddressSpace::ProcessAddressSpace(ProcessAddressSpace *parentSpace, unsig
 				machine->physPageWhereAbouts[pageTemp].threadId = childPID;
 				machine->physPageWhereAbouts[pageTemp].numAddrSpacesAttached = 1;
 				machine->physPageWhereAbouts[pageTemp].pageTableEntry = &KernelPageTable[i];
+				machine->physPageWhereAbouts[pageTemp].lastAccessTime=stats->totalTicks;	//set lastAccessTime for newly allocated shmem
+				machine->physPageWhereAbouts[pageTemp].refBit=1;
+
+
 				KernelPageTable[i].physicalPage = pageTemp;
 				bzero((((char *)machine->mainMemory)+(pageTemp*PageSize)),PageSize);
 				// zero out the entire address space, to zero the unitialized data segment

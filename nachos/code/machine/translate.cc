@@ -91,13 +91,23 @@ Machine::ReadMem(int addr, int size, int *value)
     ExceptionType exception;
     int physicalAddress;
 
+
     DEBUG('a', "Reading VA 0x%x, size %d\n", addr, size);
 
     exception = Translate(addr, &physicalAddress, size, FALSE);
-		if (exception != NoException) {
+		//Edited_Start
+		int tempPageFrame=(physicalAddress%NumPhysPages);
+		//Edited_Stop
+
+  if (exception != NoException) {
 			machine->RaiseException(exception, addr);
 	return FALSE;
     }
+//Edited_Start
+		machine->physPageWhereAbouts[tempPageFrame].lastAccessTime=stats->totalTicks;
+		machine->physPageWhereAbouts[tempPageFrame].refBit=1;
+//Edited_Stop
+
     switch (size) {
       case 1:
 	data = machine->mainMemory[physicalAddress];
@@ -143,10 +153,19 @@ Machine::WriteMem(int addr, int size, int value)
     DEBUG('a', "Writing VA 0x%x, size %d, value 0x%x\n", addr, size, value);
 
     exception = Translate(addr, &physicalAddress, size, TRUE);
-    if (exception != NoException) {
+    //Edited_Start
+		int tempPageFrame=(physicalAddress%NumPhysPages);
+		//Edited_Stop
+  
+  if (exception != NoException) {
 	machine->RaiseException(exception, addr);
 	return FALSE;
     }
+		//Edited_Start
+				machine->physPageWhereAbouts[tempPageFrame].lastAccessTime=stats->totalTicks;
+				machine->physPageWhereAbouts[tempPageFrame].refBit=1;
+		//Edited_Stop
+
     switch (size) {
       case 1:
 	machine->mainMemory[physicalAddress] = (unsigned char) (value & 0xff);
@@ -211,7 +230,7 @@ Machine::Translate(int virtAddr, int* physAddr, int size, bool writing)
     if (tlb == NULL) {		// => page table => vpn is index into table
 	if (vpn >= KernelPageTableSize) {
 	    DEBUG('a', "virtual page # %d too large for page table size %d!\n",
-			vpn, KernelPageTableSize);
+			virtAddr, KernelPageTableSize);
 	    return AddressErrorException;
 	} else if (!KernelPageTable[vpn].valid) {
 	    DEBUG('a', "virtual page # %d too large for page table size %d!\n",
