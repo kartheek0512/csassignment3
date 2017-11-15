@@ -18,10 +18,16 @@
 #include "copyright.h"
 #include "system.h"
 #include "addrspace.h"
-#include "noff.h"
 
 //Edited_Start
-//extern List * ListOfPagesAvailable;
+List * ListOfExecutables = new List();
+executableEntry::executableEntry(OpenFile *executableGiven)
+{
+	this->executable = executableGiven;
+	this->numAddrSpacesAttached = 1;
+}
+unsigned executableCount=0;
+//Edited_Stop
 
 int
 ProcessAddressSpace::ShmAllocate(unsigned reqPages)
@@ -72,7 +78,7 @@ ProcessAddressSpace::pageFaultHandler(unsigned faultVAddr)
 {
 	stats->numPageFaults++;
 	void *temp;
-	unsigned pageTemp;
+	int pageTemp;
 	temp = (void *)machine->ListOfPagesAvailable->SortedRemove(&pageTemp);
 	numPagesAllocated++;
 	unsigned faultVPage = faultVAddr/PageSize;
@@ -84,7 +90,10 @@ ProcessAddressSpace::pageFaultHandler(unsigned faultVAddr)
 					// a separate page, we could set its
 					// pages to be read-only
 	machine->KernelPageTable[faultVPage].shared = FALSE;
-	currentThread->executable->ReadAt(&(machine->mainMemory[pageTemp * PageSize]),
+	ASSERT(currentThread->space->executableKeyValid);
+	executableEntry * tempExecutableEntry = (executableEntry *)ListOfExecutables->Search(currentThread->space->executableKey);
+	NoffHeader noffH = currentThread->space->noffH;
+	tempExecutableEntry->executable->ReadAt(&(machine->mainMemory[pageTemp * PageSize]),
                         PageSize, noffH.code.inFileAddr + faultVPage * PageSize);
 }
 
@@ -140,9 +149,13 @@ ProcessAddressSpace::ProcessAddressSpace(OpenFile *executable)
 		(WordToHost(noffH.noffMagic) == NOFFMAGIC))
     	SwapHeader(&noffH);
     ASSERT(noffH.noffMagic == NOFFMAGIC);
+		executableEntry *tempExecutableEntry = new executableEntry(executable);
+		ListOfExecutables->SortedInsert((void *)tempExecutableEntry, executableCount);
+		this->executableKey = executableCount;
+		this->executableKeyValid = TRUE;
+		this->noffH = noffH;
+		executableCount++;
 
-		currentThread->executable = executable;
-		currentThread->noffH = noffH;
 // how big is address space?
     size = noffH.code.size + noffH.initData.size + noffH.uninitData.size
 			+ UserStackSize;	// we need to increase the size
@@ -160,7 +173,17 @@ ProcessAddressSpace::ProcessAddressSpace(OpenFile *executable)
 // first, set up the translation
     KernelPageTable = new TranslationEntry[numVirtualPages];
 		//Edited_Start
-		void * temp;
+		for (i = 0; i < numVirtualPages; i++) {
+			KernelPageTable[i].virtualPage = i;
+			KernelPageTable[i].valid = FALSE;
+			KernelPageTable[i].use = FALSE;
+			KernelPageTable[i].dirty = FALSE;
+			KernelPageTable[i].readOnly = FALSE;  // if the code segment was entirely on
+							// a separate page, we could set its
+							// pages to be read-only
+			KernelPageTable[i].shared = FALSE;
+	    }
+/*		void * temp;
     int pageTemp;
     for (i = 0; i < numVirtualPages; i++) {
 			temp = (void *)machine->ListOfPagesAvailable->SortedRemove(&pageTemp);
@@ -200,7 +223,7 @@ ProcessAddressSpace::ProcessAddressSpace(OpenFile *executable)
         pageFrame = entry->physicalPage;
         executable->ReadAt(&(machine->mainMemory[pageFrame * PageSize + offset]),
 			noffH.initData.size, noffH.initData.inFileAddr);
-    }
+    }*/
 
 }
 
@@ -228,7 +251,11 @@ ProcessAddressSpace::ProcessAddressSpace(ProcessAddressSpace *parentSpace)
 		void * temp;
     int pageTemp;
     for (i = 0; i < numVirtualPages; i++) {
-			if(parentPageTable[i].valid && parentPageTable[i].shared) KernelPageTable[i].physicalPage = parentPageTable[i].physicalPage;
+			if(parentPageTable[i].valid && parentPageTable[i].shared)
+			{
+				KernelPageTable[i].physicalPage = parentPageTable[i].physicalPage;
+
+			}
 			else if(parentPageTable[i].valid && !(parentPageTable[i].shared))
 			{
 				temp = (void *)machine->ListOfPagesAvailable->SortedRemove(&pageTemp);
@@ -251,6 +278,14 @@ ProcessAddressSpace::ProcessAddressSpace(ProcessAddressSpace *parentSpace)
 				KernelPageTable[i].shared = parentPageTable[i].shared;
     }
 
+		//Edited_Start
+		this->executableKey = parentSpace->executableKey;
+		this->executableKeyValid = TRUE;
+		this->noffH = parentSpace->noffH;
+		executableEntry* tempExecutableEntry = (executableEntry *)ListOfExecutables->Search(this->executableKey);
+		tempExecutableEntry->numAddrSpacesAttached++;
+		//Edited_Stop
+
 		// Copy the contents
     /*unsigned startAddrParent = parentPageTable[0].physicalPage*PageSize;
     unsigned startAddrChild = numPagesAllocated*PageSize;
@@ -269,6 +304,9 @@ ProcessAddressSpace::~ProcessAddressSpace()
 {
 	//Edited_Start
 	int pageTemp,i;
+	executableEntry * tempExecutableEntry = (executableEntry *)ListOfExecutables->Search(this->executableKey);
+	tempExecutableEntry->numAddrSpacesAttached--;
+	if(!(tempExecutableEntry->numAddrSpacesAttached>0))ListOfExecutables->SearchAndRemove(this->executableKey);
     for (i = 0; i < numVirtualPages; i++) {
 	if((KernelPageTable[i].valid == TRUE) && (KernelPageTable[i].shared != TRUE)){
 		numPagesAllocated--;

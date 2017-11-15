@@ -56,6 +56,10 @@ static void WriteDone(int arg) { writeDone->V(); }
 
 extern void LaunchUserProcess (char*);
 
+//Edited_Start
+extern List * ListOfExecutables;
+//Edited_Stop
+
 void
 ForkStartFunction (int dummy)
 {
@@ -120,15 +124,16 @@ ExceptionHandler(ExceptionType which)
     else if ((which == SyscallException) && (type == SysCall_Exec)) {
        // Copy the executable name into kernel space
        vaddr = machine->ReadRegister(4);
-       machine->ReadMem(vaddr, 1, &memval);
+       while  (!machine->ReadMem(vaddr, 1, &memval));
        i = 0;
        while ((*(char*)&memval) != '\0') {
           buffer[i] = (*(char*)&memval);
           i++;
           vaddr++;
-          machine->ReadMem(vaddr, 1, &memval);
+        while  (!machine->ReadMem(vaddr, 1, &memval));
        }
        buffer[i] = (*(char*)&memval);
+       delete currentThread->space;
        LaunchUserProcess(buffer);
     }
     else if ((which == SyscallException) && (type == SysCall_Join)) {
@@ -214,12 +219,12 @@ ExceptionHandler(ExceptionType which)
     }
     else if ((which == SyscallException) && (type == SysCall_PrintString)) {
        vaddr = machine->ReadRegister(4);
-       machine->ReadMem(vaddr, 1, &memval);
+      while (!machine->ReadMem(vaddr, 1, &memval));
        while ((*(char*)&memval) != '\0') {
           writeDone->P() ;
           console->PutChar(*(char*)&memval);
           vaddr++;
-          machine->ReadMem(vaddr, 1, &memval);
+        while  (!machine->ReadMem(vaddr, 1, &memval));
        }
        // Advance program counters.
        machine->WriteRegister(PrevPCReg, machine->ReadRegister(PCReg));

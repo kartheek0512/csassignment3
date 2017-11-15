@@ -192,8 +192,7 @@ class NachOSThread {
     void RestoreUserState();		// restore user-level register state
 
     ProcessAddressSpace *space;			// User code this thread is running.
-    NoffHeader noffH;
-    OpenFile * executable;
+  
 #endif
 };
 

@@ -15,8 +15,20 @@
 
 #include "copyright.h"
 #include "filesys.h"
+//Edited_Start
+#include "noff.h"
+//Edited_Stop
 
 #define UserStackSize		1024 	// increase this as necessary!
+
+//Edited_Start
+class executableEntry {
+public:
+  executableEntry(OpenFile *executableGiven);
+  OpenFile * executable;
+  unsigned numAddrSpacesAttached;
+};
+//Edited_Stop
 
 class ProcessAddressSpace {
   public:
@@ -43,6 +55,9 @@ class ProcessAddressSpace {
 
     //Edited_Start
     int ShmAllocate(unsigned reqPages);
+    NoffHeader noffH;
+    int executableKey;
+    bool executableKeyValid;
     //Edited_Stop
 
   private:

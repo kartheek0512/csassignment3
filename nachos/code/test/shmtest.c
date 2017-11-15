@@ -11,6 +11,14 @@ main()
     array[0] = 0;
     array[1] = 100;
 
+/*//Edited_Start
+syscall_wrapper_PrintString("Array[0]=");
+syscall_wrapper_PrintInt(array[0]);
+syscall_wrapper_PrintChar('\n');
+syscall_wrapper_PrintString("Array[1]=");
+syscall_wrapper_PrintInt(array[1]);
+syscall_wrapper_PrintChar('\n');
+//Edited_Stop*/
     x = syscall_wrapper_Fork();
     if (x == 0) {
        array[0] = 20;

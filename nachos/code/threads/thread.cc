@@ -43,7 +43,6 @@ NachOSThread::NachOSThread(char* threadName, int nice)
 #ifdef USER_PROGRAM
     space = NULL;
     stateRestored = true;
-    executable = NULL;
 #endif
 
     threadArray[thread_index] = this;
@@ -98,11 +97,6 @@ NachOSThread::~NachOSThread()
     DEBUG('t', "Deleting thread \"%s\"\n", name);
 
     ASSERT(this != currentThread);
-//Edited_Start
-    #ifdef USER_PROGRAM
-    delete executable;
-    #endif
-//Edited_Stop
     if (stack != NULL)
 	DeallocBoundedArray((char *) stack, StackSize * sizeof(int));
 }

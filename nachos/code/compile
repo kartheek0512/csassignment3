@@ -1,0 +1,18 @@
+#!/bin/bash
+
+wrk_dir=$(pwd)
+cd ~/cs330assignment3/nachos/code/threads
+make clean
+make depend
+make
+read -p "threads Done! Enter to Continue"
+cd ../userprog
+make clean
+make depend
+make
+read -p "userprog Done! Enter to Continue"
+cd ../test
+make clean
+make
+read -p "test Done! Enter to Continue"
+cd $wrk_dir

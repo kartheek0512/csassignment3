@@ -9,7 +9,9 @@ void DekkerEntry (int *flag, int id, int *turn)
    while (flag[1-id]) {
       if ((*turn) == (1-id)) {
          flag[id] = 0;
-         while ((*turn) == (1-id));
+         while ((*turn) == (1-id))
+         {
+         }
          flag[id] = 1;
       }
    }
