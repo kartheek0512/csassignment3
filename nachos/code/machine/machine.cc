@@ -60,6 +60,7 @@ Machine::Machine(bool debug)
 {
     int i;
 		ListOfPagesAvailable = new List();
+		FIFOQ = new List();
 		physPageWhereAbouts = new physicalPageMetaData[NumPhysPages];
 		for(i=0; i<NumPhysPages; i++){
 			physPageWhereAbouts[i].numAddrSpacesAttached = 0;
