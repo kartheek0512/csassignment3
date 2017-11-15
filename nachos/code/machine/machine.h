@@ -83,7 +83,9 @@ public:
 	unsigned threadId;
 	TranslationEntry * pageTableEntry;
 	unsigned numAddrSpacesAttached;
-	int last_access_time;
+	int lastAccessTime;				//to store last accessed time of the page
+	bool refBit;							//reference bit
+	int clockHand;						//clockHand for clock LRU
 };
 //Edited_Stop
 
@@ -176,6 +178,7 @@ class Machine {
 				// code and data, while executing
 		//Edited_Start
 		List *ListOfPagesAvailable;
+		List *FIFOQ;
 		physicalPageMetaData * physPageWhereAbouts;
 		//Edited_Stop
     int registers[NumTotalRegs]; // CPU registers, for executing user programs
@@ -204,6 +207,7 @@ class Machine {
 
     TranslationEntry *KernelPageTable;
     unsigned int KernelPageTableSize;
+
 
   private:
     bool singleStep;		// drop back into the debugger after each
