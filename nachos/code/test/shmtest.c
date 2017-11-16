@@ -5,7 +5,6 @@
 int
 main()
 {
-/*  syscall_wrapper_PrintString("Array[0]=");
   syscall_wrapper_PrintString("Array[0]=");
   syscall_wrapper_PrintString("Array[0]=");
   syscall_wrapper_PrintString("Array[0]=");
@@ -29,9 +28,10 @@ main()
   syscall_wrapper_PrintString("Array[0]=");
   syscall_wrapper_PrintString("Array[0]=");
   syscall_wrapper_PrintString("Array[0]=");
-  */
+  syscall_wrapper_PrintString("Array[0]=");
 
-    int *array = (int*)syscall_wrapper_ShmAllocate(2*sizeof(int));
+
+  /*  int *array = (int*)syscall_wrapper_ShmAllocate(2*sizeof(int));
     int x, i;
 
     array[0] = 0;
@@ -56,7 +56,6 @@ main()
        syscall_wrapper_PrintString("Array[1]=");
        syscall_wrapper_PrintInt(array[1]);
        syscall_wrapper_PrintChar('\n');
-    }
-    //syscall_wrapper_PrintString("xyz");
+    }*/
     return 0;
 }

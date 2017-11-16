@@ -35,7 +35,7 @@
 					// simplicity
 
 //#define NumPhysPages    32
-#define NumPhysPages 16
+#define NumPhysPages 3
 //Edited_Start
 //const int NumPhysPages = 1024;
 //Edited_Stop
@@ -85,8 +85,8 @@ public:
 	unsigned numAddrSpacesAttached;
 	int lastAccessTime;				//to store last accessed time of the page
 	bool refBit;							//reference bit
-	int clockHand;						//clockHand for clock LRU
 };
+extern int clockHand;						//clockHand for clock LRU
 //Edited_Stop
 
 // The following class defines an instruction, represented in both

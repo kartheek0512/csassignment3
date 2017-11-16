@@ -103,10 +103,6 @@ Machine::ReadMem(int addr, int size, int *value)
 			machine->RaiseException(exception, addr);
 	return FALSE;
     }
-//Edited_Start
-		machine->physPageWhereAbouts[tempPageFrame].lastAccessTime=stats->totalTicks;
-		machine->physPageWhereAbouts[tempPageFrame].refBit=1;
-//Edited_Stop
 
     switch (size) {
       case 1:
@@ -161,11 +157,7 @@ Machine::WriteMem(int addr, int size, int value)
 	machine->RaiseException(exception, addr);
 	return FALSE;
     }
-		//Edited_Start
-				machine->physPageWhereAbouts[tempPageFrame].lastAccessTime=stats->totalTicks;
-				machine->physPageWhereAbouts[tempPageFrame].refBit=1;
-		//Edited_Stop
-
+		
     switch (size) {
       case 1:
 	machine->mainMemory[physicalAddress] = (unsigned char) (value & 0xff);
@@ -265,6 +257,12 @@ Machine::Translate(int virtAddr, int* physAddr, int size, bool writing)
 	DEBUG('a', "*** frame %d > %d!\n", pageFrame, NumPhysPages);
 	return BusErrorException;
     }
+
+		//Edited_Start
+				machine->physPageWhereAbouts[pageFrame].lastAccessTime=stats->totalTicks;
+				machine->physPageWhereAbouts[pageFrame].refBit=1;
+		//Edited_Stop
+
     entry->use = TRUE;		// set the use, dirty bits
     if (writing)
 	entry->dirty = TRUE;
