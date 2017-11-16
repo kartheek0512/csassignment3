@@ -230,7 +230,8 @@ Machine::Translate(int virtAddr, int* physAddr, int size, bool writing)
 	    return PageFaultException;
 	}
 	entry = &KernelPageTable[vpn];
-    } else {
+    }
+ 	else {
         for (entry = NULL, i = 0; i < TLBSize; i++)
     	    if (tlb[i].valid && (tlb[i].virtualPage == vpn)) {
 		entry = &tlb[i];			// FOUND!
@@ -242,7 +243,7 @@ Machine::Translate(int virtAddr, int* physAddr, int size, bool writing)
 						// the page may be in memory,
 						// but not in the TLB
 	}
-    }
+  }
 
     if (entry->readOnly && writing) {	// trying to write to a read-only page
 	DEBUG('a', "%d mapped read-only at %d in TLB!\n", virtAddr, i);
