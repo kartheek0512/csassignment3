@@ -35,7 +35,7 @@
 					// simplicity
 
 //#define NumPhysPages    32
-#define NumPhysPages 12
+#define NumPhysPages 3
 //Edited_Start
 //const int NumPhysPages = 1024;
 //Edited_Stop

@@ -218,7 +218,6 @@ ExceptionHandler(ExceptionType which)
        machine->WriteRegister(NextPCReg, machine->ReadRegister(NextPCReg)+4);
     }
     else if ((which == SyscallException) && (type == SysCall_PrintString)) {
-      printf("printstring enterd\n");
        vaddr = machine->ReadRegister(4);
       while (!machine->ReadMem(vaddr, 1, &memval));
        while ((*(char*)&memval) != '\0') {
