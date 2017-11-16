@@ -49,7 +49,7 @@ unsigned getPageToBeReplaced(int exceptThisPage){
 			int * temp;
 
 			do {
-				temp= machine->FIFOQ->Remove();
+				temp= (int *)machine->FIFOQ->Remove();
 			} while(*temp==exceptThisPage || machine->physPageWhereAbouts[*temp].pageTableEntry->shared);
 			if(((machine->physPageWhereAbouts[*temp]).pageTableEntry)->dirty) doBackUp(*temp);
 			pageToBeReplaced= *temp;
@@ -123,7 +123,7 @@ ProcessAddressSpace::ShmAllocate(unsigned reqPages)
 	TranslationEntry * oldPageTable = KernelPageTable;
 	unsigned oldNumVirtualPages = numVirtualPages;
 	numVirtualPages = oldNumVirtualPages + reqPages;
-	ListElement fifoelement[reqPages];
+	ListElement *fifoelement[reqPages];
 
 	KernelPageTable = new TranslationEntry[numVirtualPages];
 	int i;
@@ -169,10 +169,10 @@ ProcessAddressSpace::ShmAllocate(unsigned reqPages)
 		machine->physPageWhereAbouts[pageTemp].lastAccessTime=stats->totalTicks;	//set lastAccessTime for newly allocated shmem
 		machine->physPageWhereAbouts[pageTemp].refBit=1;
 
-		fifoelement[i - oldNumVirtualPages].item = (int *)new int;
-		*(fifoelement[i - oldNumVirtualPages].item)=pageTemp;
-		machine->FIFOQ->Append((fifoelement[i - oldNumVirtualPages].item));
-
+		fifoelement[i - oldNumVirtualPages]->item = (int *)new int;
+		int * temp=(int *) fifoelement[i - oldNumVirtualPages]->item;
+		*temp=pageTemp;
+		machine->FIFOQ->Append((fifoelement[i - oldNumVirtualPages]->item));
 	}
 	numPagesAllocated += reqPages;
 	delete oldPageTable;
@@ -188,7 +188,7 @@ ProcessAddressSpace::pageFaultHandler(unsigned faultVAddr)
 	stats->numPageFaults++;
 	void *temp;
 	int pageTemp;
-	ListElement fifoelement;						//ListElement to be appended to FIFOQ
+	ListElement* fifoelement;						//ListElement to be appended to FIFOQ
 	unsigned faultVPage = faultVAddr/PageSize;
 	if(!machine->ListOfPagesAvailable->IsEmpty())temp = (void *)machine->ListOfPagesAvailable->SortedRemove(&pageTemp);
 	else {
@@ -207,9 +207,11 @@ ProcessAddressSpace::pageFaultHandler(unsigned faultVAddr)
 					// pages to be read-only
 	machine->KernelPageTable[faultVPage].shared = FALSE;
 
-	fifoelement.item = (int *)new int;
-	*(fifoelement.item)=pageTemp;
-	machine->FIFOQ->Append((fifoelement.item));
+	fifoelement->item = (int *)new int;
+	int * temp_poin=(int *) fifoelement->item;
+	*temp_poin=pageTemp;
+	machine->FIFOQ->Append((fifoelement->item));
+
 
 	machine->physPageWhereAbouts[pageTemp].lastAccessTime=stats->totalTicks; 			//set lastAccessTime of newly allocated page
 	machine->physPageWhereAbouts[pageTemp].refBit=1;
@@ -403,6 +405,7 @@ ProcessAddressSpace::ProcessAddressSpace(ProcessAddressSpace *parentSpace, unsig
 		//Edited_Start
 		void * temp;
     int pageTemp;
+		ListElement* fifoelement;
     for (i = 0; i < numVirtualPages; i++) {
 			KernelPageTable[i].loadFromBackUp = FALSE;
 			if(parentPageTable[i].valid && parentPageTable[i].shared)
@@ -424,9 +427,11 @@ ProcessAddressSpace::ProcessAddressSpace(ProcessAddressSpace *parentSpace, unsig
 				machine->physPageWhereAbouts[parentPageTable[i].physicalPage].lastAccessTime = stats->totalTicks;
 				machine->physPageWhereAbouts[pageTemp].lastAccessTime=stats->totalTicks;	//set lastAccessTime for newly allocated shmem
 				machine->physPageWhereAbouts[pageTemp].refBit=1;
-				fifoelement.item = (int *)new int;
-				*(fifoelement.item)=pageTemp;
-				machine->FIFOQ->Append((fifoelement.item));
+
+				fifoelement->item = (int *)new int;
+				int * temp=(int *) fifoelement->item;
+				*temp=pageTemp;
+				machine->FIFOQ->Append((fifoelement->item));
 
 
 
